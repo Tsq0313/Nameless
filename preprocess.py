@@ -73,7 +73,7 @@ def get_masks(tokens, max_seq_length):
 
 def get_segments(tokens, max_seq_length):
     """Segments: 0 for the first sequence, 1 for the second"""
-    if len(tokens)>max_seq_length:
+    if len(tokens) > max_seq_length:
         raise IndexError("Token length more than max seq length!")
     segments = []
     current_segment_id = 0
@@ -87,11 +87,11 @@ def get_segments(tokens, max_seq_length):
 def get_ids(tokens, tokenizer, max_seq_length):
     """Token ids from Tokenizer vocab"""
     token_ids = tokenizer.convert_tokens_to_ids(tokens)
-    input_ids = token_ids + [0] * (max_seq_length-len(token_ids))
+    input_ids = token_ids + [0] * (max_seq_length - len(token_ids))
     return input_ids
 
-train_data = np.array([])
-train_label = np.array([])
+train_data_seq = np.array([])
+train_label_seq = np.array([])
 
 for i in range(size):
     line = lines[i]
@@ -103,14 +103,17 @@ for i in range(size):
     token = tokenizer.tokenize(line)
     token = ["[CLS]"] + token + ["[SEP]"]
                 
-    input_id = get_ids(tokens, tokenizer, max_seq_length)
-    input_mask = get_masks(stokens, max_seq_length)
-    input_segment = get_segments(stokens, max_seq_length)
+    input_id = get_ids(token, tokenizer, max_seq_length)
+    input_mask = get_masks(token, max_seq_length)
+    input_segment = get_segments(token, max_seq_length)
 
-    _, data = model.predict([[input_ids],[input_masks],[input_segments]])
-    train_data = np.append(train_data, data)
+    seq_data, word_data = model.predict([[input_id],[input_mask],[input_segment]])
+    train_data_seq = np.append(train_data_seq, seq_data)
+    train_data_word = np.append(train_data_word, word_data)
 
-train_dataset = np.array(train_data)
+train_data_seq = np.array(train_data_seq)
+train_data_word = np.array(train_data_word)
 train_labels = np.array(train_label)
-np.save("data.npy", train_dataset)
+np.save("data_seq.npy", train_data_seq)
+np.save("data_word.npy", train_data_word)
 np.save("label.npy", train_labels)

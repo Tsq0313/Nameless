@@ -11,7 +11,7 @@ import numpy as np
 import re
 
 # Load data
-f_chars_file = "F_text.txt"
+f_chars_file = "./data/F_text.txt"
 f_chars_id = []
 with open(f_chars_file, "r") as f:
     for line in f.readlines():
@@ -19,7 +19,7 @@ with open(f_chars_file, "r") as f:
         k = line[0]
         f_chars_id.append(k)
 
-m_chars_file = "M_text.txt"
+m_chars_file = "./data/M_text.txt"
 m_chars_id = []
 with open(m_chars_file, "r") as f:
     for line in f.readlines():
@@ -29,7 +29,7 @@ with open(m_chars_file, "r") as f:
 
 f_lines = []
 m_lines = []
-lines_file = "lines.txt"
+lines_file = "./data/lines.txt"
 
 with open(lines_file, "r") as f:
     for line in f.readlines():

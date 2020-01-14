@@ -11,12 +11,11 @@ from torchtext.vocab import GloVe
 from torch.utils.data.dataset import random_split
 from torch.utils.data import DataLoader
 
-from utils import read_data, divide_dataset
-from metrics import ClassificationMetrics
+from utils import read_data, divide_dataset,  ClassificationMetrics
 from model import TextCNN, TextLSTM
 # Load data
 def make_data(fields):
-    m_lines, f_lines = read_data(2000000)
+    m_lines, f_lines = read_data(200)
     # Load Pre-Trained BERT Model via TF 2.0
     lines = m_lines + f_lines
     size = len(lines)

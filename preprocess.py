@@ -35,8 +35,6 @@ with open(lines_file, "r") as f:
         line = line.split(" +++$+++ ")
         k = line[1]
         v = line[4].strip()
-        if len(v.split()) > 128:
-            continue
         if k in f_chars_id:
             f_lines.append(v.lower())
         elif k in m_chars_id:
@@ -46,7 +44,7 @@ with open(lines_file, "r") as f:
 # Prepare Data
 lines = m_lines + f_lines
 size = len(lines)
-max_seq_length = 130
+max_seq_length = 128
 
 input_word_ids = tf.keras.layers.Input(shape=(max_seq_length,), dtype=tf.int32,
                                        name="input_word_ids")
@@ -102,7 +100,9 @@ for i in range(size):
         
     token = tokenizer.tokenize(line)
     token = ["[CLS]"] + token + ["[SEP]"]
-                
+    
+    if len(token) > 128:
+        continue
     input_id = get_ids(token, tokenizer, max_seq_length)
     input_mask = get_masks(token, max_seq_length)
     input_segment = get_segments(token, max_seq_length)

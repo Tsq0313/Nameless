@@ -91,7 +91,8 @@ def get_ids(tokens, tokenizer, max_seq_length):
     return input_ids
 
 train_data_seq = np.array([])
-train_label_seq = np.array([])
+train_data_word = np.array([])
+train_label = np.array([])
 
 for i in range(size):
     line = lines[i]

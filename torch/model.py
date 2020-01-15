@@ -7,7 +7,7 @@ from tqdm import tqdm
 from typing import List, Tuple, Dict, Set
 from collections import Counter
 from time import time
-
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 class TextCNN(nn.Module):
     def __init__(self, vocab, embeding_size, filters, num_classes, pretrain = False):
@@ -52,7 +52,9 @@ class TextLSTM(nn.Module):
             self.embedding.weight.data.copy_(vocab.vectors)
 
         self.LSTM = nn.LSTM(embeding_size, hidden_size, 1, batch_first = True, bidirectional=True)
-        self.fc   = nn.Linear(hidden_size*4, num_classes)
+        self.fc   = nn.Linear(hidden_size*6, num_classes)
+        self.vec  = nn.Parameter(torch.zeros(1,hidden_size*2, 1))
+        torch.nn.init.normal_(self.vec)
 
     def forward(self, x):
         """
@@ -62,11 +64,26 @@ class TextLSTM(nn.Module):
         x_len = [sum(x[i] != self.padding_idx) for i in range(B)]
         x = self.embedding(x)
       #  x = self.dropout(x)
+        x = pack_padded_sequence(x, x_len, batch_first=True)
         x, _ = self.LSTM(x)
+        x =  pad_packed_sequence(x, batch_first=True)
+        x = x[0]
+
+        y = self.vec.repeat(B,1,1)
+        e = torch.bmm(x, y) # (B,L,1)
+        mask = torch.ones_like(e)
+        for i in range(B):
+            mask[i,:x_len[i]] = 0
+        e.data.masked_fill_(mask.bool(), -1e30)
+        e = F.softmax(e, dim=1)
+        att = torch.bmm(e.transpose(1,2), x).squeeze(1)
+
         x_m = x.transpose(1,2)
         x_max = torch.max_pool1d(x_m, x_m.shape[-1]).squeeze(-1)
         x_avg = torch.avg_pool1d(x_m, x_m.shape[-1]).squeeze(-1)
 
-        out = torch.cat((x_max, x_avg), 1) #(B,4H)
+        out = torch.cat((x_max, x_avg, att), 1) #(B,6H)
         out = self.fc(out)
         return out
+
+

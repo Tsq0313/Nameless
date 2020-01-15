@@ -1,5 +1,6 @@
 import random
 from torchtext import data, datasets
+from collections import Counter
 def read_data(size_limit):
     f_chars_file = "F_text.txt"
     f_chars_id = set()
@@ -53,7 +54,7 @@ def divide_dataset(__train, factor, fields):
     valid = data.Dataset(valid, fields)
     return train, valid
 
-def data_analysis():
+def data_analysis(train, TEXT):
     for i in range(5):
         print(train[i].text, train[i].label)
     ##check word vector
@@ -75,7 +76,8 @@ def data_analysis():
     
     length_freqs = Counter([len(example.text) for example in train])
     print("context: min len :",min(length_freqs),"max len :",max(length_freqs))
-    
+    for i in range(1,6):
+        print(i, length_freqs[i])
     
     print(label_freqs)
     """
@@ -89,16 +91,18 @@ class ClassificationMetrics(object):
         self.loss = 0
         self.size = 0
         self.acc = 0
+        self.one_cnt = 0
         self.criterion = criterion
     def update(self, logit, label):
         size = logit.shape[0]
         loss = self.criterion(logit, label)
-        self.loss += loss.item()
+        self.loss += loss.item()*size
         self.size += size
+        self.one_cnt += logit.argmax(1).sum().item()
         self.acc += (logit.argmax(1) == label).sum().item()
         return loss
     def __getitem__(self, key):
         return getattr(self, key)/self.size
     def __str__(self):
-        return ("loss : %.2f, acc : %.2f" %(self["loss"], self["acc"]))
+        return ("loss : %.2f, acc : %.2f, 1cnt : %.2f" %(self["loss"], self["acc"], self["one_cnt"]))
 

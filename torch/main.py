@@ -17,28 +17,48 @@ from transformers import BertTokenizer, BertForSequenceClassification
 def make_data(fields):
     examples = []
     premise = ""
-    with open("../standard_lines.txt", "r") as f:
+    start_id = set()
+    with open("movie_conversations.txt", "r") as f:
         for line in f.readlines():
-            line = line.split("\t")
-            text = line[-2]
-            label = line[-1]
+            line = line.split("+++$+++")
+            line = line[-1]
+            p = line.find("L")
+            q = line.find("'",p)
+            start_id.add(line[p:q])
+    with open("../standard_lines.txt", "r") as f:
+        lines = f.readlines()
+    context = []
+    cnt = 0
+    data_size = len(lines)
+    for line in lines:
+        line = line.split("\t")
+        text = line[-2]
+        label = line[-1]
             
-            text = text.lower()
-            text = text.replace("<i>","").replace("</i>","")
-            text = text.replace("<u>","").replace("</u>","")
-            text = text.replace("'bout", "about")
-            text = text.replace("y'know", "you know")
-            text = text.replace("goin'", "going")
-            text = nltk.word_tokenize(text)
-            l = len(text)+len(premise)
-            if l>=4 and l < 256 and len(premise)>0 :
-                example = data.Example.fromlist(
-                    [premise+["[SEP]"]+text, label],
-                    fields
-                )
-                examples.append(example)
-            premise = text
-    return data.Dataset(examples, fields)
+        text = text.lower()
+        text = text.replace("<i>","").replace("</i>","")
+        text = text.replace("<u>","").replace("</u>","")
+        text = text.replace("'bout", "about")
+        text = text.replace("y'know", "you know")
+        text = text.replace("goin'", "going")
+        text = nltk.word_tokenize(text)
+
+        if len(context)>0:
+            context = ["[SEP]"] +context
+        context = text+context
+        l = len(context)
+        cnt += 1
+        if l>=4 and l<=256:
+            example = data.Example.fromlist(
+                [context, label],
+                fields
+            )
+            examples.append(example)
+        if line[0].strip() in start_id or cnt >=4:
+            context = []
+            cnt = 0
+    train_size = int(data_size * 0.9)
+    return data.Dataset(examples[:train_size], fields), data.Dataset(examples[train_size:], fields)
 def postproc(text, x):
     ret = []
     for sent in text:
@@ -69,9 +89,8 @@ fields = [
         ("text", TEXT),
         ("label", LABEL)
         ]
-__train = make_data(fields)
+train, valid = make_data(fields)
 print("make data finish")
-train, valid = divide_dataset(__train, 0.9, fields)
 TEXT.build_vocab(train, max_size = vocab_size)
 if pretrain:
     TEXT.vocab.load_vectors(vectors=GloVe(name='6B', dim=300))
@@ -84,13 +103,11 @@ train_iter, valid_iter = data.BucketIterator.splits(
             (train, valid), batch_size=batch_size, sort_key=lambda x:len(x.text), sort_within_batch=True,device=device)
 data_analysis(train, TEXT)
 
-
 if use_bert:
     model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=num_classes).to(device)
 else:
-    model = TextCNN (TEXT.vocab, embed_size, num_filters, num_classes, pretrain=pretrain).to(device)
-  #  model = TextLSTM(TEXT.vocab, embed_size, hidden_size, num_classes, pretrain=pretrain).to(device)
- #   model = ESIM(TEXT.vocab, embed_size, hidden_size, num_classes, pretrain=pretrain).to(device)
+  #  model = TextCNN (TEXT.vocab, embed_size, num_filters, num_classes, pretrain=pretrain).to(device)
+    model = TextLSTM(TEXT.vocab, embed_size, hidden_size, num_classes, pretrain=pretrain).to(device)
 
 print(model)
 total_num = sum(p.numel() for p in model.parameters())

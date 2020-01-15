@@ -53,7 +53,7 @@ for line in movie_lines:
     lines_id2line_dict[line_id] = sentence
 
 def check(sentence, max_seq_length = 128):
-  tokens =  ["[CLS]"] + tokenizer.tokenize(line) + ["[SEP]"]
+  tokens =  ["[CLS]"] + tokenizer.tokenize(sentence) + ["[SEP]"]
   return True if len(tokens) <= 128 and len(tokens) > 2 else False
 
 out_female2male_conver_part1 =  open('female2male_part1.txt', 'w')

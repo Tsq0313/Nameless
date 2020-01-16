@@ -10,7 +10,7 @@ from torch.utils.data.dataset import random_split
 from torch.utils.data import DataLoader
 
 from utils import divide_dataset,  ClassificationMetrics, data_analysis
-from model import TextCNN, TextLSTM
+from model import TextCNN, TextLSTM, ESIM
 
 from transformers import BertTokenizer, BertForSequenceClassification
 # Load data
@@ -18,8 +18,17 @@ def make_data(file_name, fields):
     examples = []
     premise = ""
     start_id = set()
+    with open("movie_conversations.txt", "r") as f:
+        for line in f.readlines():
+            line = line.split("+++$+++")
+            line = line[-1]
+            p = line.find("L")
+            q = line.find("'",p)
+            start_id.add(line[p:q])
     with open(file_name, "r") as f:
         lines = f.readlines()
+    context = []
+    lastid = -1
     for line in lines:
         line = line.split("\t")
         text = line[-2]
@@ -32,17 +41,22 @@ def make_data(file_name, fields):
         text = text.replace("y'know", "you know")
         text = text.replace("goin'", "going")
         text = nltk.word_tokenize(text)
-
-        l = len(text)
-     #   if l>=4 and l<=256:
-        if True:
+        nowid = int(line[0].strip()[-2:])
+        if nowid != lastid - 1:
+            context = []
+        lastid = nowid
+        l = len(context)
+        ll = len(text)
+        if l>=4 and l<=256 and ll>=4 and ll<=256:
             example = data.Example.fromlist(
-                [text, label],
+                [context, text, label],
                 fields
             )
             examples.append(example)
-         #   if len(examples) > 5000: break
-
+          #  if len(examples)>5000: break
+        context = text
+        if line[0].strip() in start_id:
+            context = []
     return data.Dataset(examples, fields)
 def postproc(text, x):
     ret = []
@@ -58,22 +72,24 @@ hidden_size = 300
 n_epochs = 10
 vocab_size = 20000
 num_classes = 2
+dropout = 0.5
 pretrain = True
-use_bert = True
+use_bert =False
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ##################
 if use_bert:
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    TEXT  = data.Field(use_vocab=False, batch_first=True, lower=True, postprocessing=postproc, pad_token="[PAD]")
+    TEXT  = data.Field(use_vocab=False, batch_first=True, postprocessing=postproc, pad_token="[PAD]")
 else:
     TEXT  = data.Field(lower=True, batch_first=True)#, preprocessing=preproc
 LABEL = data.Field(sequential=False, batch_first=True, use_vocab=False)
 fields = [
+        ("premise", TEXT),
         ("text", TEXT),
         ("label", LABEL)
         ]
-train = make_data("../standard_lines.txt", fields)
-valid = make_data("valid_lines.txt", fields)
+train= make_data("../standard_lines.txt", fields)
+valid= make_data("valid_lines.txt", fields)
 print("make data finish")
 TEXT.build_vocab(train, max_size = vocab_size)
 if pretrain:
@@ -86,12 +102,13 @@ print("valid size :", valid_size)
 train_iter, valid_iter = data.BucketIterator.splits(
             (train, valid), batch_size=batch_size, sort_key=lambda x:len(x.text), sort_within_batch=True,device=device)
 data_analysis(train, valid, TEXT)
-exit()
+
 if use_bert:
     model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=num_classes).to(device)
 else:
-  #  model = TextCNN (TEXT.vocab, embed_size, num_filters, num_classes, pretrain=pretrain).to(device)
-    model = TextLSTM(TEXT.vocab, embed_size, hidden_size, num_classes, pretrain=pretrain).to(device)
+    model = TextCNN (TEXT.vocab, embed_size, num_filters, num_classes, pretrain=pretrain).to(device)
+  #  model = TextLSTM(TEXT.vocab, embed_size, hidden_size, num_classes, pretrain=pretrain).to(device)
+   # model = ESIM(TEXT.vocab, embed_size, hidden_size, num_classes, pretrain=pretrain, dropout=dropout).to(device)
 
 print(model)
 total_num = sum(p.numel() for p in model.parameters())
@@ -100,9 +117,9 @@ print('Total:', total_num)
 print('Trainable:', trainable_num)
 
 criterion = torch.nn.CrossEntropyLoss().to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.9)
-
+"""
 batch = next(iter(train_iter))
 output = model(batch.text)
 
@@ -111,7 +128,7 @@ if use_bert:
 print(batch.text[:4])
 print(batch.label[:4])
 print(output[:4])
-
+"""
 def run_epoch(data_iter, train):
     # Train the model
     metrics = ClassificationMetrics(criterion)
@@ -120,7 +137,7 @@ def run_epoch(data_iter, train):
     else:
         model.eval()
     for i, batch in enumerate(data_iter):
-      #  premise = batch.premise.to(device)
+        premise = batch.premise.to(device)
         text = batch.text.to(device)
         labels = batch.label.to(device)
         

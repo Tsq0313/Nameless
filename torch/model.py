@@ -8,7 +8,7 @@ from typing import List, Tuple, Dict, Set
 from collections import Counter
 from time import time
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-
+import math
 class TextCNN(nn.Module):
     def __init__(self, vocab, embeding_size, filters, num_classes, pretrain = False):
         super(TextCNN, self).__init__()
@@ -46,7 +46,6 @@ class TextLSTM(nn.Module):
         self.padding_idx = vocab.stoi["<pad>"]
         unknown_idx = vocab.stoi["<unk>"]
         vocab_size  = len(vocab.itos)
-
         self.embedding = nn.Embedding(vocab_size, embeding_size, padding_idx=self.padding_idx)
         if pretrain: 
             self.embedding.weight.data.copy_(vocab.vectors)
@@ -58,10 +57,11 @@ class TextLSTM(nn.Module):
 
     def forward(self, x):
         """
-            x : Tensor(B, L)
+           x : Tensor(B, L)
         """
         B = x.shape[0]
         x_len = [sum(x[i] != self.padding_idx) for i in range(B)]
+
         x = self.embedding(x)
       #  x = self.dropout(x)
         x = pack_padded_sequence(x, x_len, batch_first=True)
@@ -86,4 +86,74 @@ class TextLSTM(nn.Module):
         out = self.fc(out)
         return out
 
+class ESIM(nn.Module):
+    def __init__(self, vocab, embeding_size, hidden_size, num_classes, dropout = 0, pretrain = False):
+        super(ESIM, self).__init__()
+        self.padding_idx = vocab.stoi["<pad>"]
+        self.hidden_size = hidden_size
+        unknown_idx = vocab.stoi["<unk>"]
+        vocab_size  = len(vocab.stoi)
+        self.embedding = nn.Embedding(vocab_size, embeding_size, padding_idx=self.padding_idx)
+        if pretrain:
+            self.embedding.weight.data.copy_(vocab.vectors)
+        self.LSTM = nn.LSTM(embeding_size, hidden_size, 1, batch_first = True, bidirectional=True)
+        self.fc = nn.Linear(32*hidden_size, num_classes)
+        self.dropout = nn.Dropout(dropout)
+    def forward(self, x, y):
+        """
+            x : Tensor(B,L1)
+            y : Tensor(B,L2)
+            x_len : list[int]
+            y_len : list[int]
+            mask : Tensor(B,L1,L2) 
+        """
+        B = x.shape[0]
+        x, x_len = self.step(x)
+        y, y_len = self.step(y)
+        y_T = y.transpose(1, 2)
+        e = torch.bmm(x, y_T)
+        mask = torch.ones_like(e)
 
+        for i in range(B):
+            mask[i,:x_len[i],:y_len[i]] = 0
+    #    print(x_len)
+     #   print(y_len)
+      #  print(e[0])
+        e.data.masked_fill_(mask.bool(), float("-inf"))
+       # print(e[0])
+        e_x = F.softmax(e, dim=1)
+        e_y = F.softmax(e, dim=2)
+        e_x.data.masked_fill_(mask.bool(), 0.0)
+        e_y.data.masked_fill_(mask.bool(), 0.0)
+        #print(e_x)
+        x_att = torch.bmm(e_y, y) # (B, L1, 2H)
+        y_att = torch.bmm(e_x.transpose(1,2), x)
+
+        x_m = torch.cat((x, x_att, x-x_att, x*x_att), 2) #(B, L1, 8H)
+        y_m = torch.cat((y, y_att, y-y_att, y*y_att), 2)
+        x_m = x_m.transpose(1,2)
+        y_m = y_m.transpose(1,2)
+        x_m = self.dropout(x_m)
+        y_m = self.dropout(y_m)
+
+        x_max = torch.max_pool1d(x_m, x_m.shape[-1]).squeeze(-1) # (B, 8H)
+        x_avg = torch.avg_pool1d(x_m, x_m.shape[-1]).squeeze(-1)
+        y_max = torch.max_pool1d(y_m, y_m.shape[-1]).squeeze(-1)
+        y_avg = torch.avg_pool1d(y_m, y_m.shape[-1]).squeeze(-1)
+        out = torch.cat((x_max, x_avg, y_max, y_avg), 1) #(B,32H)
+     #   out = torch.cat((y_max, y_avg), 1) #(B,32H)
+        out = self.dropout(out)
+        out = self.fc(out)
+        return out
+    def step(self, x):
+        """
+            x : Tensor(B,L)
+        return
+            x : Tensor(B,L,2H)
+        """
+        B = x.shape[0]
+        x_len = [sum(x[i] != self.padding_idx) for i in range(B)]
+        x = self.embedding(x)
+        x = self.dropout(x)
+        x, _ = self.LSTM(x)
+        return x, x_len

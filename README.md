@@ -2,6 +2,7 @@
 Repository for team Nameless at Google winer ML camp 2020
 
 Citation:
+
 [1]Kim Y. Convolutional neural networks for sentence classification[J]. arXiv preprint arXiv:1408.5882, 2014.
 
 [2]Pengfei Liu, Xipeng Qiu, Xuanjing Huang, Recurrent Neural Network for TextClassification with Multi-Task Learning” IJCAI, May 2016.

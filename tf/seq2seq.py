@@ -8,7 +8,7 @@ import json
 import os
 
 max_seq_len = 128
-n_hidden_unit = 127
+n_hidden_unit = 128
 
 # Refer to https://towardsdatascience.com/bert-in-keras-with-tensorflow-hub-76bcbc9417b
 bert_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/1",
@@ -187,7 +187,7 @@ test_decode_segs = decode_segs[unit * 4 : , :]
 train_labels = labels[: unit * 4, 1 :]
 test_labels = labels[unit * 4 : , 1 :]
 
-def seq2seq_model(vocab_size, max_seq_length=128, n_hidden_unit=127):
+def seq2seq_model(vocab_size, max_seq_length=128, n_hidden_unit=128):
   # Encoder
   encode_id = tf.keras.layers.Input(shape=(max_seq_length,), dtype=tf.int32,
                                     name="encode_input_word_ids")
